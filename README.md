@@ -36,3 +36,11 @@ The add-in is just static files. You can host this folder on any free HTTPS stat
 - Snippets are saved in the add-in's own browser storage on that computer. Use **Backup** to copy them out, and **Import** to restore or move them to another computer.
 - Line breaks in a snippet become new paragraphs when inserted.
 - Plain text only for now. Formatting (bold, tables) would need the snippet stored as HTML/OOXML – can be added.
+
+## Features (v2)
+- **Folder tabs**: All, ★ Favorites, and your own 📁 folders (+ Folder to add; Rename / Delete when a folder tab is open).
+- **Favorites**: tap ☆ on a snippet; see them all in the Favorites tab.
+- **Pin**: tap 📌 to keep a snippet at the top of its list.
+- **Multiple tags**: add as many tags as you like (Enter or comma); click a tag to filter.
+- **Resizable text box**: drag the bottom-right corner of the editor box; the size is remembered.
+- Old snippets (and their old "group") are converted automatically.

@@ -18,26 +18,56 @@
 
   <!-- List view -->
   <main id="view-list">
+    <div class="tabs-wrap">
+      <div id="tabs" class="tabs" role="tablist" aria-label="Folders"></div>
+      <button id="btn-add-folder" class="tab-add" type="button" title="New folder" aria-label="New folder">+ Folder</button>
+    </div>
+
+    <div id="folder-form" class="folder-form" hidden>
+      <input id="folder-name" type="text" maxlength="30" placeholder="Folder name" />
+      <button id="btn-folder-save" class="primary" type="button">Save</button>
+      <button id="btn-folder-cancel" class="ghost" type="button">Cancel</button>
+    </div>
+    <p id="folder-error" class="error" hidden></p>
+
+    <div id="folder-tools" class="folder-tools" hidden>
+      <span id="folder-title" class="folder-title"></span>
+      <button id="btn-folder-rename" class="ghost small" type="button">Rename</button>
+      <button id="btn-folder-delete" class="ghost small danger" type="button">Delete folder</button>
+    </div>
+
     <div class="filters">
       <input id="search" type="search" placeholder="Search snippets…" autocomplete="off" />
-      <select id="group-filter" aria-label="Filter by group"></select>
+      <select id="tag-filter" aria-label="Filter by tag"></select>
     </div>
     <p class="hint">Place the cursor in your document, then click a snippet to insert it.</p>
     <ul id="snippet-list" class="snippet-list"></ul>
-    <p id="empty" class="empty" hidden>No snippets found.</p>
+    <p id="empty" class="empty" hidden>No snippets here.</p>
   </main>
 
   <!-- Editor view -->
   <section id="view-edit" hidden>
     <h2 id="edit-heading">New snippet</h2>
+
     <label for="f-title">Title</label>
     <input id="f-title" type="text" maxlength="80" placeholder="e.g. Closing greeting" />
 
-    <label for="f-group">Group <span class="muted">(optional)</span></label>
-    <input id="f-group" type="text" maxlength="40" list="group-options" placeholder="e.g. Letters" />
-    <datalist id="group-options"></datalist>
+    <label for="f-folder">Folder</label>
+    <select id="f-folder"></select>
 
-    <label for="f-text">Text to insert</label>
+    <label for="f-tag-input">Tags <span class="muted">(type a tag, press Enter or comma)</span></label>
+    <div id="tag-box" class="tag-box">
+      <span id="tag-chips" class="tag-chips"></span>
+      <input id="f-tag-input" type="text" maxlength="30" placeholder="Add tag…" autocomplete="off" />
+    </div>
+    <div id="tag-suggest" class="tag-suggest"></div>
+
+    <div class="checks">
+      <label class="check"><input id="f-fav" type="checkbox" /> ★ Favorite</label>
+      <label class="check"><input id="f-pin" type="checkbox" /> 📌 Pin to top</label>
+    </div>
+
+    <label for="f-text">Text to insert <span class="muted">(drag the corner to resize)</span></label>
     <textarea id="f-text" rows="10" placeholder="Type or paste the text. Line breaks are kept."></textarea>
 
     <div class="row">
@@ -50,7 +80,7 @@
   <!-- Backup view -->
   <section id="view-backup" hidden>
     <h2>Backup &amp; restore</h2>
-    <p class="hint">Copy this text and keep it somewhere safe. To restore (or move to another computer), paste a backup here and press Import.</p>
+    <p class="hint">Copy this text and keep it somewhere safe. To restore (or move to another computer), paste a backup here and press Import. Folders, tags, favorites and pins are included.</p>
     <textarea id="backup-text" rows="12" spellcheck="false"></textarea>
     <div class="row">
       <button id="btn-copy" class="ghost" type="button">Copy</button>
