@@ -159,6 +159,24 @@ label { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 13px; }
 .snippet-main:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
 .snippet-title { font-weight: 600; overflow-wrap: anywhere; }
 
+/* drag to reorder */
+.drag-handle {
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  margin-left: -4px;
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+.drag-handle:hover { background: transparent; color: var(--blue); }
+.drag-handle:active { cursor: grabbing; }
+.snippet.dragging { opacity: 0.45; }
+.snippet.drop-before { box-shadow: 0 -3px 0 0 var(--blue); }
+.snippet.drop-after { box-shadow: 0 3px 0 0 var(--blue); }
+
 .snippet-icons { display: flex; gap: 2px; }
 .icon-btn {
   border: none;

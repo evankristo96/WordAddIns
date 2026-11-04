@@ -266,10 +266,20 @@ function renderList() {
   renderFolderTools();
   renderTagFilter();
 
-  const q = $("search").value.trim().toLowerCase();
   const list = $("snippet-list");
   list.innerHTML = "";
 
+  const shown = visibleSnippets();
+
+  $("empty").hidden = shown.length > 0;
+  $("empty").textContent = ui.tab === "fav" ? "No favorites yet. Tap ☆ on a snippet." : "No snippets here.";
+
+  shown.forEach((s) => list.appendChild(buildCard(s)));
+}
+
+/* Snippets currently shown (tab + tag + search), pinned first, otherwise in saved order. */
+function visibleSnippets() {
+  const q = $("search").value.trim().toLowerCase();
   const shown = data.snippets.filter((s) => {
     if (ui.tab === "fav" && !s.fav) return false;
     if (ui.tab !== "all" && ui.tab !== "fav" && s.folder !== ui.tab) return false;
@@ -277,12 +287,115 @@ function renderList() {
     if (!q) return true;
     return (s.title + " " + s.text + " " + s.tags.join(" ")).toLowerCase().includes(q);
   });
-  shown.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first, otherwise keep order
+  shown.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  return shown;
+}
 
-  $("empty").hidden = shown.length > 0;
-  $("empty").textContent = ui.tab === "fav" ? "No favorites yet. Tap ☆ on a snippet." : "No snippets here.";
+/* ---------- drag to reorder ---------- */
 
-  shown.forEach((s) => list.appendChild(buildCard(s)));
+let dragId = null;
+
+function clearDropMarks() {
+  document.querySelectorAll(".drop-before, .drop-after").forEach((el) => el.classList.remove("drop-before", "drop-after"));
+}
+
+function snippetById(id) { return data.snippets.find((s) => s.id === id); }
+
+/* Move snippet `id` next to `targetId` (before or after it). Works inside the current view:
+ * the visible snippets keep occupying the same slots of the saved order, just rearranged. */
+function reorder(id, targetId, after) {
+  const drag = snippetById(id);
+  const target = snippetById(targetId);
+  if (!drag || !target || id === targetId || drag.pinned !== target.pinned) return false;
+
+  const group = visibleSnippets().filter((s) => s.pinned === drag.pinned);
+  const ids = group.map((s) => s.id).filter((x) => x !== id);
+  let at = ids.indexOf(targetId);
+  if (at < 0) return false;
+  if (after) at++;
+  ids.splice(at, 0, id);
+
+  const inGroup = new Set(group.map((s) => s.id));
+  const slots = [];
+  data.snippets.forEach((s, i) => { if (inGroup.has(s.id)) slots.push(i); });
+  const ordered = ids.map(snippetById);
+  slots.forEach((pos, i) => { data.snippets[pos] = ordered[i]; });
+  save();
+  return true;
+}
+
+function focusHandle(id) {
+  const h = document.querySelector('.drag-handle[data-id="' + id + '"]');
+  if (h) h.focus();
+}
+
+function buildHandle(s, li) {
+  const h = document.createElement("button");
+  h.type = "button";
+  h.className = "drag-handle";
+  h.dataset.id = s.id;
+  h.textContent = "⠿";
+  h.title = "Drag to reorder (or focus and press ↑ / ↓)";
+  h.setAttribute("aria-label", "Reorder " + (s.title || "snippet") + ". Press up or down arrow to move.");
+
+  // The card is only draggable while the handle is held, so text selection and clicks keep working.
+  h.addEventListener("mousedown", () => { li.draggable = true; });
+  h.addEventListener("mouseup", () => { li.draggable = false; });
+
+  h.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    e.preventDefault();
+    const group = visibleSnippets().filter((x) => x.pinned === s.pinned);
+    const i = group.findIndex((x) => x.id === s.id);
+    const j = e.key === "ArrowUp" ? i - 1 : i + 1;
+    if (j < 0 || j >= group.length) return;
+    if (reorder(s.id, group[j].id, e.key === "ArrowDown")) {
+      renderList();
+      focusHandle(s.id);
+    }
+  });
+  return h;
+}
+
+function wireDrag(li, s) {
+  li.addEventListener("dragstart", (e) => {
+    dragId = s.id;
+    li.classList.add("dragging");
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", s.id); } catch (err) { /* some browsers refuse */ }
+    }
+  });
+  li.addEventListener("dragend", () => {
+    li.draggable = false;
+    li.classList.remove("dragging");
+    dragId = null;
+    clearDropMarks();
+  });
+  li.addEventListener("dragover", (e) => {
+    if (!dragId || dragId === s.id) return;
+    const dragged = snippetById(dragId);
+    if (!dragged || dragged.pinned !== s.pinned) return; // pinned stay above unpinned
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const r = li.getBoundingClientRect();
+    const after = e.clientY > r.top + r.height / 2;
+    clearDropMarks();
+    li.classList.add(after ? "drop-after" : "drop-before");
+  });
+  li.addEventListener("dragleave", (e) => {
+    if (!li.contains(e.relatedTarget)) li.classList.remove("drop-before", "drop-after");
+  });
+  li.addEventListener("drop", (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const r = li.getBoundingClientRect();
+    const after = e.clientY > r.top + r.height / 2;
+    const id = dragId;
+    dragId = null;
+    clearDropMarks();
+    if (reorder(id, s.id, after)) renderList();
+  });
 }
 
 function iconButton(text, label, active, onClick) {
@@ -320,9 +433,11 @@ function buildCard(s) {
   icons.appendChild(iconButton("📌", s.pinned ? "Unpin" : "Pin to top", s.pinned, () => toggle(s, "pinned")));
   icons.appendChild(iconButton(s.fav ? "★" : "☆", s.fav ? "Remove from favorites" : "Add to favorites", s.fav, () => toggle(s, "fav")));
 
+  head.appendChild(buildHandle(s, li));
   head.appendChild(main);
   head.appendChild(icons);
   li.appendChild(head);
+  wireDrag(li, s);
 
   const meta = document.createElement("div");
   meta.className = "snippet-meta";

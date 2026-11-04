@@ -43,4 +43,5 @@ The add-in is just static files. You can host this folder on any free HTTPS stat
 - **Pin**: tap 📌 to keep a snippet at the top of its list.
 - **Multiple tags**: add as many tags as you like (Enter or comma); click a tag to filter.
 - **Resizable text box**: drag the bottom-right corner of the editor box; the size is remembered.
+- **Drag to reorder**: drag the ⠿ handle on a snippet up or down (or focus it and press ↑ / ↓). Order is saved. Pinned snippets stay above unpinned ones.
 - Old snippets (and their old "group") are converted automatically.
