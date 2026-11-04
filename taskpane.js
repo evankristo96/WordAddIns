@@ -292,8 +292,9 @@ function visibleSnippets() {
 }
 
 /* ---------- drag to reorder ---------- */
+/* Uses pointer events (mouse, pen and touch) instead of HTML5 drag-and-drop, which is unreliable in Office task panes. */
 
-let dragId = null;
+let drag = null; // { id, li, pid, startY, moved, targetId, after }
 
 function clearDropMarks() {
   document.querySelectorAll(".drop-before, .drop-after").forEach((el) => el.classList.remove("drop-before", "drop-after"));
@@ -304,11 +305,11 @@ function snippetById(id) { return data.snippets.find((s) => s.id === id); }
 /* Move snippet `id` next to `targetId` (before or after it). Works inside the current view:
  * the visible snippets keep occupying the same slots of the saved order, just rearranged. */
 function reorder(id, targetId, after) {
-  const drag = snippetById(id);
+  const dragged = snippetById(id);
   const target = snippetById(targetId);
-  if (!drag || !target || id === targetId || drag.pinned !== target.pinned) return false;
+  if (!dragged || !target || id === targetId || dragged.pinned !== target.pinned) return false;
 
-  const group = visibleSnippets().filter((s) => s.pinned === drag.pinned);
+  const group = visibleSnippets().filter((s) => s.pinned === dragged.pinned);
   const ids = group.map((s) => s.id).filter((x) => x !== id);
   let at = ids.indexOf(targetId);
   if (at < 0) return false;
@@ -324,78 +325,100 @@ function reorder(id, targetId, after) {
   return true;
 }
 
-function focusHandle(id) {
-  const h = document.querySelector('.drag-handle[data-id="' + id + '"]');
-  if (h) h.focus();
+/* Move one step up (-1) or down (+1) within the same pinned group. */
+function step(s, dir) {
+  const group = visibleSnippets().filter((x) => x.pinned === s.pinned);
+  const i = group.findIndex((x) => x.id === s.id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= group.length) return false;
+  return reorder(s.id, group[j].id, dir > 0);
+}
+
+function focusControl(selector) {
+  const el = document.querySelector(selector);
+  if (el) el.focus();
+}
+
+function endDrag() {
+  if (drag) {
+    drag.li.classList.remove("dragging");
+    drag = null;
+  }
+  document.body.classList.remove("is-dragging");
+  clearDropMarks();
+}
+
+function onDragMove(e) {
+  if (!drag || e.pointerId !== drag.pid) return;
+  if (!drag.moved && Math.abs(e.clientY - drag.startY) < 4) return;
+  drag.moved = true;
+  e.preventDefault();
+  drag.li.classList.add("dragging");
+  document.body.classList.add("is-dragging");
+
+  // find the drop position among cards of the same pinned state
+  const pinned = drag.li.getAttribute("data-pinned");
+  const cards = Array.prototype.filter.call($("snippet-list").children, (c) => c.getAttribute("data-pinned") === pinned);
+  clearDropMarks();
+  drag.targetId = null;
+  for (let k = 0; k < cards.length; k++) {
+    const c = cards[k];
+    const r = c.getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) { drag.targetId = c.getAttribute("data-id"); drag.after = false; c.classList.add("drop-before"); break; }
+  }
+  if (!drag.targetId && cards.length) {
+    const last = cards[cards.length - 1];
+    drag.targetId = last.getAttribute("data-id");
+    drag.after = true;
+    last.classList.add("drop-after");
+  }
+  if (drag.targetId === drag.id) { clearDropMarks(); }
+
+  // scroll the pane when near its top/bottom edge
+  if (e.clientY < 50) window.scrollBy(0, -14);
+  else if (e.clientY > window.innerHeight - 50) window.scrollBy(0, 14);
+}
+
+function onDragEnd(e) {
+  if (!drag || e.pointerId !== drag.pid) return;
+  const d = drag;
+  const doMove = d.moved && d.targetId && e.type === "pointerup";
+  try { if (e.target.releasePointerCapture) e.target.releasePointerCapture(d.pid); } catch (err) { /* ignore */ }
+  endDrag();
+  if (doMove && reorder(d.id, d.targetId, d.after)) {
+    renderList();
+    focusControl('.drag-handle[data-id="' + d.id + '"]');
+  }
 }
 
 function buildHandle(s, li) {
   const h = document.createElement("button");
   h.type = "button";
   h.className = "drag-handle";
-  h.dataset.id = s.id;
+  h.setAttribute("data-id", s.id);
   h.textContent = "⠿";
-  h.title = "Drag to reorder (or focus and press ↑ / ↓)";
+  h.title = "Drag up or down to reorder";
   h.setAttribute("aria-label", "Reorder " + (s.title || "snippet") + ". Press up or down arrow to move.");
 
-  // The card is only draggable while the handle is held, so text selection and clicks keep working.
-  h.addEventListener("mousedown", () => { li.draggable = true; });
-  h.addEventListener("mouseup", () => { li.draggable = false; });
+  h.addEventListener("pointerdown", (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    drag = { id: s.id, li, pid: e.pointerId, startY: e.clientY, moved: false, targetId: null, after: false };
+    try { if (h.setPointerCapture) h.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  });
+  h.addEventListener("pointermove", onDragMove);
+  h.addEventListener("pointerup", onDragEnd);
+  h.addEventListener("pointercancel", onDragEnd);
 
   h.addEventListener("keydown", (e) => {
     if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
     e.preventDefault();
-    const group = visibleSnippets().filter((x) => x.pinned === s.pinned);
-    const i = group.findIndex((x) => x.id === s.id);
-    const j = e.key === "ArrowUp" ? i - 1 : i + 1;
-    if (j < 0 || j >= group.length) return;
-    if (reorder(s.id, group[j].id, e.key === "ArrowDown")) {
+    if (step(s, e.key === "ArrowUp" ? -1 : 1)) {
       renderList();
-      focusHandle(s.id);
+      focusControl('.drag-handle[data-id="' + s.id + '"]');
     }
   });
   return h;
-}
-
-function wireDrag(li, s) {
-  li.addEventListener("dragstart", (e) => {
-    dragId = s.id;
-    li.classList.add("dragging");
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      try { e.dataTransfer.setData("text/plain", s.id); } catch (err) { /* some browsers refuse */ }
-    }
-  });
-  li.addEventListener("dragend", () => {
-    li.draggable = false;
-    li.classList.remove("dragging");
-    dragId = null;
-    clearDropMarks();
-  });
-  li.addEventListener("dragover", (e) => {
-    if (!dragId || dragId === s.id) return;
-    const dragged = snippetById(dragId);
-    if (!dragged || dragged.pinned !== s.pinned) return; // pinned stay above unpinned
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    const r = li.getBoundingClientRect();
-    const after = e.clientY > r.top + r.height / 2;
-    clearDropMarks();
-    li.classList.add(after ? "drop-after" : "drop-before");
-  });
-  li.addEventListener("dragleave", (e) => {
-    if (!li.contains(e.relatedTarget)) li.classList.remove("drop-before", "drop-after");
-  });
-  li.addEventListener("drop", (e) => {
-    if (!dragId) return;
-    e.preventDefault();
-    const r = li.getBoundingClientRect();
-    const after = e.clientY > r.top + r.height / 2;
-    const id = dragId;
-    dragId = null;
-    clearDropMarks();
-    if (reorder(id, s.id, after)) renderList();
-  });
 }
 
 function iconButton(text, label, active, onClick) {
@@ -413,6 +436,8 @@ function iconButton(text, label, active, onClick) {
 function buildCard(s) {
   const li = document.createElement("li");
   li.className = "snippet" + (s.pinned ? " pinned" : "");
+  li.setAttribute("data-id", s.id);
+  li.setAttribute("data-pinned", s.pinned ? "1" : "0");
 
   const head = document.createElement("div");
   head.className = "snippet-head";
@@ -437,7 +462,6 @@ function buildCard(s) {
   head.appendChild(main);
   head.appendChild(icons);
   li.appendChild(head);
-  wireDrag(li, s);
 
   const meta = document.createElement("div");
   meta.className = "snippet-meta";
@@ -478,6 +502,23 @@ function buildCard(s) {
     });
     actions.appendChild(more);
   }
+
+  [["↑", "Move up", -1], ["↓", "Move down", 1]].forEach((m) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "move-btn";
+    b.textContent = m[0];
+    b.title = m[1];
+    b.setAttribute("aria-label", m[1] + " " + (s.title || "snippet"));
+    b.setAttribute("data-move", s.id + ":" + m[2]);
+    b.addEventListener("click", () => {
+      if (step(s, m[2])) {
+        renderList();
+        focusControl('.move-btn[data-move="' + s.id + ":" + m[2] + '"]');
+      }
+    });
+    actions.appendChild(b);
+  });
 
   const edit = document.createElement("button");
   edit.type = "button";

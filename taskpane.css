@@ -173,7 +173,9 @@ label { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 13px; }
 }
 .drag-handle:hover { background: transparent; color: var(--blue); }
 .drag-handle:active { cursor: grabbing; }
-.snippet.dragging { opacity: 0.45; }
+.snippet.dragging { opacity: 0.55; box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }
+.move-btn { min-width: 26px; }
 .snippet.drop-before { box-shadow: 0 -3px 0 0 var(--blue); }
 .snippet.drop-after { box-shadow: 0 3px 0 0 var(--blue); }
 
