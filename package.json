@@ -1,0 +1,10 @@
+{
+  "name": "quick-text-word-addin",
+  "version": "1.0.0",
+  "description": "Word task pane add-in: keep text snippets and insert them at the cursor.",
+  "private": true,
+  "scripts": {
+    "certs": "npx office-addin-dev-certs install",
+    "start": "node serve.js"
+  }
+}

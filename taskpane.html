@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quick Text</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="taskpane.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Quick Text</h1>
+    <div class="topbar-actions">
+      <button id="btn-new" class="primary" type="button">+ New</button>
+      <button id="btn-backup" class="ghost" type="button" title="Backup / restore">Backup</button>
+    </div>
+  </header>
+
+  <!-- List view -->
+  <main id="view-list">
+    <div class="filters">
+      <input id="search" type="search" placeholder="Search snippets…" autocomplete="off" />
+      <select id="group-filter" aria-label="Filter by group"></select>
+    </div>
+    <p class="hint">Place the cursor in your document, then click a snippet to insert it.</p>
+    <ul id="snippet-list" class="snippet-list"></ul>
+    <p id="empty" class="empty" hidden>No snippets found.</p>
+  </main>
+
+  <!-- Editor view -->
+  <section id="view-edit" hidden>
+    <h2 id="edit-heading">New snippet</h2>
+    <label for="f-title">Title</label>
+    <input id="f-title" type="text" maxlength="80" placeholder="e.g. Closing greeting" />
+
+    <label for="f-group">Group <span class="muted">(optional)</span></label>
+    <input id="f-group" type="text" maxlength="40" list="group-options" placeholder="e.g. Letters" />
+    <datalist id="group-options"></datalist>
+
+    <label for="f-text">Text to insert</label>
+    <textarea id="f-text" rows="10" placeholder="Type or paste the text. Line breaks are kept."></textarea>
+
+    <div class="row">
+      <button id="btn-save" class="primary" type="button">Save</button>
+      <button id="btn-cancel" class="ghost" type="button">Cancel</button>
+    </div>
+    <p id="edit-error" class="error" hidden></p>
+  </section>
+
+  <!-- Backup view -->
+  <section id="view-backup" hidden>
+    <h2>Backup &amp; restore</h2>
+    <p class="hint">Copy this text and keep it somewhere safe. To restore (or move to another computer), paste a backup here and press Import.</p>
+    <textarea id="backup-text" rows="12" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="btn-copy" class="ghost" type="button">Copy</button>
+      <button id="btn-import-merge" class="primary" type="button">Import (add)</button>
+      <button id="btn-import-replace" class="ghost" type="button">Import (replace all)</button>
+    </div>
+    <div class="row">
+      <button id="btn-backup-close" class="ghost" type="button">Back to list</button>
+    </div>
+    <p id="backup-msg" class="hint" hidden></p>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="taskpane.js"></script>
+</body>
+</html>
