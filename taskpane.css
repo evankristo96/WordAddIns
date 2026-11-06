@@ -306,3 +306,5 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .toast.bad { background: var(--danger); }
 
 #backup-text { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+
+.version { text-align: center; color: var(--muted); font-size: 11px; margin: 16px 0 0; opacity: 0.7; }

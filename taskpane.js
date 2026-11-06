@@ -447,17 +447,12 @@ function buildCard(s) {
   li.className = "snippet" + (s.pinned ? " pinned" : "");
   li.setAttribute("data-id", s.id);
   li.setAttribute("data-pinned", s.pinned ? "1" : "0");
-  li.tabIndex = 0;
   li.title = "Click to insert at the cursor";
 
   // the whole card inserts the snippet; buttons inside keep their own action
   li.addEventListener("click", (e) => {
     if (isControl(e.target, li)) return;
     insertSnippet(s);
-  });
-  li.addEventListener("keydown", (e) => {
-    if (e.target !== li) return;
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); insertSnippet(s); }
   });
 
   const open = expanded.has(s.id);
@@ -562,17 +557,29 @@ function requestDelete(id) {
 async function insertSnippet(s) {
   try {
     await Word.run(async (context) => {
-      // The trailing line break ends the paragraph, so the cursor lands on the NEXT line.
-      // A second click then inserts below instead of on the same line.
-      const text = s.text.replace(/\n+$/, "") + "\n";
+      // 1) put the text at the cursor (replaces any selection)
+      const text = s.text.replace(/\n+$/, "");
       const range = context.document.getSelection().insertText(text, Word.InsertLocation.replace);
-      range.select(Word.SelectionMode.end); // cursor goes to the start of the new line
       await context.sync();
+
+      // 2) open a new empty paragraph below and put the cursor in it,
+      //    so the next click or keystroke goes to the next line
+      try {
+        const next = range.insertParagraph("", Word.InsertLocation.after);
+        next.select(Word.SelectionMode.start);
+        await context.sync();
+      } catch (e) {
+        range.insertText("\n", Word.InsertLocation.end);
+        range.select(Word.SelectionMode.end);
+        await context.sync();
+      }
     });
     toast("Inserted: " + (s.title || "snippet"));
   } catch (err) {
     toast("Could not insert: " + (err && err.message ? err.message : err), true);
   }
+  // keep the pane from holding keyboard focus, so Enter is not captured by it
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) { /* ignore */ }
 }
 
 /* ---------- editor ---------- */
