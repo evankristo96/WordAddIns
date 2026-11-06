@@ -421,16 +421,25 @@ function buildHandle(s, li) {
   return h;
 }
 
-function iconButton(text, label, active, onClick) {
+function iconButton(text, label, active, onClick, extraClass) {
   const b = document.createElement("button");
   b.type = "button";
-  b.className = "icon-btn" + (active ? " on" : "");
+  b.className = "icon-btn" + (active ? " on" : "") + (extraClass ? " " + extraClass : "");
   b.textContent = text;
   b.title = label;
   b.setAttribute("aria-label", label);
-  b.setAttribute("aria-pressed", active ? "true" : "false");
+  if (active !== null) b.setAttribute("aria-pressed", active ? "true" : "false"); // null = plain action, not a toggle
   b.addEventListener("click", onClick);
   return b;
+}
+
+/* True when a click landed on a button or the expanded preview, i.e. not a "plain" click on the card. */
+function isControl(el, card) {
+  while (el && el !== card) {
+    if (el.tagName === "BUTTON" || (el.classList && el.classList.contains("snippet-detail"))) return true;
+    el = el.parentNode;
+  }
+  return false;
 }
 
 function buildCard(s) {
@@ -438,39 +447,39 @@ function buildCard(s) {
   li.className = "snippet" + (s.pinned ? " pinned" : "");
   li.setAttribute("data-id", s.id);
   li.setAttribute("data-pinned", s.pinned ? "1" : "0");
+  li.tabIndex = 0;
+  li.title = "Click to insert at the cursor";
 
+  // the whole card inserts the snippet; buttons inside keep their own action
+  li.addEventListener("click", (e) => {
+    if (isControl(e.target, li)) return;
+    insertSnippet(s);
+  });
+  li.addEventListener("keydown", (e) => {
+    if (e.target !== li) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); insertSnippet(s); }
+  });
+
+  const open = expanded.has(s.id);
+
+  // one compact row: handle | title + folder/tag badges | icon buttons
   const head = document.createElement("div");
   head.className = "snippet-head";
+  head.appendChild(buildHandle(s, li));
 
-  const main = document.createElement("button");
-  main.type = "button";
-  main.className = "snippet-main";
-  main.title = "Click to insert at the cursor";
-  main.addEventListener("click", () => insertSnippet(s));
-
-  const title = document.createElement("div");
+  const line = document.createElement("div");
+  line.className = "snippet-line";
+  const title = document.createElement("span");
   title.className = "snippet-title";
   title.textContent = s.title || "(untitled)";
-  main.appendChild(title);
+  line.appendChild(title);
 
-  const icons = document.createElement("div");
-  icons.className = "snippet-icons";
-  icons.appendChild(iconButton("📌", s.pinned ? "Unpin" : "Pin to top", s.pinned, () => toggle(s, "pinned")));
-  icons.appendChild(iconButton(s.fav ? "★" : "☆", s.fav ? "Remove from favorites" : "Add to favorites", s.fav, () => toggle(s, "fav")));
-
-  head.appendChild(buildHandle(s, li));
-  head.appendChild(main);
-  head.appendChild(icons);
-  li.appendChild(head);
-
-  const meta = document.createElement("div");
-  meta.className = "snippet-meta";
   const f = folderById(s.folder);
   if (f && ui.tab !== s.folder) {
     const fb = document.createElement("span");
     fb.className = "folder-badge";
     fb.textContent = "📁 " + f.name;
-    meta.appendChild(fb);
+    line.appendChild(fb);
   }
   s.tags.forEach((t) => {
     const tag = document.createElement("button");
@@ -479,62 +488,54 @@ function buildCard(s) {
     tag.textContent = "# " + t;
     tag.title = "Filter by this tag";
     tag.addEventListener("click", () => { ui.tag = t; saveUi(); renderList(); });
-    meta.appendChild(tag);
+    line.appendChild(tag);
   });
-  if (meta.childNodes.length) li.appendChild(meta);
+  head.appendChild(line);
 
-  const open = expanded.has(s.id);
-  const preview = document.createElement("div");
-  preview.className = "snippet-preview" + (open ? " open" : "");
-  preview.textContent = s.text;
-  li.appendChild(preview);
+  const icons = document.createElement("div");
+  icons.className = "snippet-icons";
+  icons.appendChild(iconButton("📌", s.pinned ? "Unpin" : "Pin to top", s.pinned, () => toggle(s, "pinned")));
+  icons.appendChild(iconButton(s.fav ? "★" : "☆", s.fav ? "Remove from favorites" : "Add to favorites", s.fav, () => toggle(s, "fav")));
+  icons.appendChild(iconButton(open ? "▴" : "▾", open ? "Hide preview" : "Show preview", null, () => {
+    if (expanded.has(s.id)) expanded.delete(s.id); else expanded.add(s.id);
+    renderList();
+  }, "preview-toggle"));
+  icons.appendChild(iconButton("✎", "Edit", null, () => openEditor(s.id), "edit-btn"));
+  const confirming = pendingDelete === s.id;
+  icons.appendChild(iconButton(confirming ? "Delete?" : "🗑", confirming ? "Click again to confirm delete" : "Delete", null,
+    () => requestDelete(s.id), "del-btn" + (confirming ? " confirm" : "")));
+  head.appendChild(icons);
+  li.appendChild(head);
 
-  const actions = document.createElement("div");
-  actions.className = "snippet-actions";
+  if (open) {
+    const detail = document.createElement("div");
+    detail.className = "snippet-detail";
+    const preview = document.createElement("div");
+    preview.className = "snippet-preview";
+    preview.textContent = s.text;
+    detail.appendChild(preview);
 
-  if (s.text.length > 90 || s.text.indexOf("\n") !== -1) {
-    const more = document.createElement("button");
-    more.type = "button";
-    more.textContent = open ? "Show less" : "Show more";
-    more.addEventListener("click", () => {
-      if (expanded.has(s.id)) expanded.delete(s.id); else expanded.add(s.id);
-      renderList();
+    const tools = document.createElement("div");
+    tools.className = "detail-tools";
+    [["↑", "Move up", -1], ["↓", "Move down", 1]].forEach((m) => {
+      const mb = document.createElement("button");
+      mb.type = "button";
+      mb.className = "move-btn";
+      mb.textContent = m[0];
+      mb.title = m[1];
+      mb.setAttribute("aria-label", m[1] + " " + (s.title || "snippet"));
+      mb.setAttribute("data-move", s.id + ":" + m[2]);
+      mb.addEventListener("click", () => {
+        if (step(s, m[2])) {
+          renderList();
+          focusControl('.move-btn[data-move="' + s.id + ":" + m[2] + '"]');
+        }
+      });
+      tools.appendChild(mb);
     });
-    actions.appendChild(more);
+    detail.appendChild(tools);
+    li.appendChild(detail);
   }
-
-  [["↑", "Move up", -1], ["↓", "Move down", 1]].forEach((m) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "move-btn";
-    b.textContent = m[0];
-    b.title = m[1];
-    b.setAttribute("aria-label", m[1] + " " + (s.title || "snippet"));
-    b.setAttribute("data-move", s.id + ":" + m[2]);
-    b.addEventListener("click", () => {
-      if (step(s, m[2])) {
-        renderList();
-        focusControl('.move-btn[data-move="' + s.id + ":" + m[2] + '"]');
-      }
-    });
-    actions.appendChild(b);
-  });
-
-  const edit = document.createElement("button");
-  edit.type = "button";
-  edit.textContent = "Edit";
-  edit.addEventListener("click", () => openEditor(s.id));
-
-  const del = document.createElement("button");
-  del.type = "button";
-  del.className = "danger";
-  if (pendingDelete === s.id) { del.classList.add("confirm"); del.textContent = "Confirm delete"; }
-  else del.textContent = "Delete";
-  del.addEventListener("click", () => requestDelete(s.id));
-
-  actions.appendChild(edit);
-  actions.appendChild(del);
-  li.appendChild(actions);
   return li;
 }
 
