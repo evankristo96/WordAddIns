@@ -562,8 +562,11 @@ function requestDelete(id) {
 async function insertSnippet(s) {
   try {
     await Word.run(async (context) => {
-      const range = context.document.getSelection().insertText(s.text, Word.InsertLocation.replace);
-      range.select(Word.SelectionMode.end); // leave the cursor after the inserted text
+      // The trailing line break ends the paragraph, so the cursor lands on the NEXT line.
+      // A second click then inserts below instead of on the same line.
+      const text = s.text.replace(/\n+$/, "") + "\n";
+      const range = context.document.getSelection().insertText(text, Word.InsertLocation.replace);
+      range.select(Word.SelectionMode.end); // cursor goes to the start of the new line
       await context.sync();
     });
     toast("Inserted: " + (s.title || "snippet"));
